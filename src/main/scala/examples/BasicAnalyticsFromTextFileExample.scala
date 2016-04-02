@@ -66,5 +66,7 @@ object BasicAnalyticsFromTextFileExample {
 
     println("Years most voted:")
     yearRatingCount.sortBy(-_._2).foreach(rating => println(rating._1+" (year)  -->  "+rating._2+" Stars"))
+
+    sc.stop()
   }
 }
