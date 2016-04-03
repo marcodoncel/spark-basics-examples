@@ -1,8 +1,9 @@
 package examples
 
+import io.proximus.analytics.utils.Settings
 import model.{MovieMap, RatingMap}
 import org.apache.spark.{SparkConf, SparkContext}
-import utils.LogManager
+import utils.{LogManager, RDDUtils}
 
 /**
   * Created by marcodoncel on 4/1/16.
@@ -10,10 +11,13 @@ import utils.LogManager
 object WritingRDDToMongoDBExample {
 
   def main(args: Array[String]): Unit = {
+
+    val settings = Settings.loadSettings()
+
     //Spark Log is really verbose so the first thing is to set the log level to WARN
     LogManager.setStreamingLogLevelToWarn()
-    val sparkConf = new SparkConf().setAppName("Movies analytics")
-        .setMaster("local[2]")
+    val sparkConf = new SparkConf().setAppName(settings.sparkAppName)
+        .setMaster(settings.sparkMaster)
 
     val sc = new SparkContext(sparkConf)
 
@@ -25,47 +29,13 @@ object WritingRDDToMongoDBExample {
     val ratingsRDD = sc.textFile(getClass().getResource("/u.data").getPath).flatMap(rawRating => RatingMap.fromSplittedString(rawRating.split('\t'))).cache()
 
     //Processing from file in resources and converting to RDD[Movie] for easier management later on (Not neccesary)
-    val moviesRDD = sc.textFile(getClass().getResource("/u.item").getPath).flatMap(rawMovie => MovieMap.fromSplittedString(rawMovie.split('|')))
+    val moviesRDD = sc.textFile(getClass().getResource("/u.item").getPath).flatMap(rawMovie => MovieMap.fromSplittedString(rawMovie.split('|'))).cache()
 
 
-    //Now we'll calculate movies for what year are best voted
-    //first of all we join both RDD (ratings and movies)
-
-    //RDD[Int,Int] -> MovieId,Rating
-    val movieRatingRDD = ratingsRDD.map(rating => (rating.movieId,rating.rating))
-    val movieYearRDD = moviesRDD.map(movie => (movie.id,movie.release.getYear))
-
-      // (K, V) join (K, W) --> (K, (V, W))
-    val yearRatingJoinRDD = movieYearRDD.join(movieRatingRDD)
-        .map(record => (record._2._1,(record._2._2,1)))
-        .map(a=>a).reduceByKey((a,b) => (a._1+b._1,a._2+b._2))
-        .map(year =>  (year._1,(math rint (year._2._1.toDouble/year._2._2) * 100) / 100) )
-
-
-
-    val totalRatings = ratingsRDD.count
-    val totalMovies = moviesRDD.count
-    //Distribution of users that have voted each rating
-    val ratingsCount = ratingsRDD.map(rating => (rating.rating,1)).reduceByKey(_ + _).collect()
-    val yearRatingCount = yearRatingJoinRDD.collect()
-
-    println("***************************************************************")
-    println("******************   RATINGS ANALYTICS   **********************")
-    println("***************************************************************")
-    println("")
-    println("")
-    println("Number of ratings processed: "+totalRatings)
-    println("Number of ratings processed: "+totalMovies)
-    println("")
-    println("")
-
-    println("Rating distribution:")
-    ratingsCount.sortBy(-_._1).foreach(rating => println(rating._1+" stars  -->  "+rating._2))
-    println("")
-    println("")
-
-    println("Years most voted:")
-    yearRatingCount.sortBy(-_._2).foreach(rating => println(rating._1+" (year)  -->  "+rating._2+" Stars"))
+    println("Loading "+moviesRDD.count+" movies to MongoDB...")
+    RDDUtils.writeRDDToMongo(moviesRDD.map(MovieMap.toBson), settings.mongoMoviesUri)
+    println("Loading "+ratingsRDD.count+" ratings to MongoDB...")
+    RDDUtils.writeRDDToMongo(ratingsRDD.map(RatingMap.toBson), settings.mongoRatingsUri)
 
     sc.stop()
   }

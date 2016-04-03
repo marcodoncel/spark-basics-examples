@@ -1,5 +1,9 @@
 package model
 
+import com.mongodb.DBObject
+import com.mongodb.casbah.commons.MongoDBObject
+import org.bson.BSONObject
+import org.bson.types.ObjectId
 import utils.LogManager
 
 /**
@@ -36,4 +40,20 @@ object RatingMap{
     }
   }
 
+  def toBson(rating: Rating): DBObject ={
+    MongoDBObject(
+      "user_id"     -> rating.userId,
+      "movie_id"     -> rating.movieId,
+      "rating" -> rating.rating,
+      "timestamp" -> rating.timestamp
+    )
+  }
+  def fromBson(o: BSONObject): (ObjectId,Rating) = {
+    (new ObjectId(o.get("_id").toString),Rating(
+      userId = o.get("user_id").asInstanceOf[Integer],
+      movieId = o.get("movie_id").asInstanceOf[Integer],
+      rating = o.get("rating").asInstanceOf[Integer],
+      timestamp = o.get("release").asInstanceOf[Long])
+      )
+  }
 }

@@ -1,5 +1,9 @@
 package model
 
+import com.mongodb.DBObject
+import com.mongodb.casbah.commons.MongoDBObject
+import org.bson.BSONObject
+import org.bson.types.ObjectId
 import org.joda.time.DateTime
 import org.joda.time.format.DateTimeFormat
 import utils.LogManager;
@@ -48,8 +52,7 @@ object MovieMap{
       Some(Movie(
         id = rawMovie(MOVIE_ID_POSITION).toInt,
         title = rawMovie(MOVIE_TITLE_POSITION),
-        release = DateTimeFormat.forPattern("dd-MMM-yyyy").parseDateTime(rawMovie(MOVIE_RELEASE_POSITION))
-        ,
+        release = DateTimeFormat.forPattern("dd-MMM-yyyy").parseDateTime(rawMovie(MOVIE_RELEASE_POSITION)),
         videoRelease = DateTimeFormat.forPattern("dd-MMM-yyyy").parseDateTime(rawMovie(MOVIE_RELEASE_POSITION)),
         imdbURL = rawMovie(MOVIE_IMDB_POSITION),
         genres = (GENRES_OFFSET to 23).flatMap(index => if(rawMovie(index).toInt==1) Some(GENRES_LIST(index - GENRES_OFFSET)) else None).toList
@@ -62,4 +65,24 @@ object MovieMap{
     }
   }
 
+  def toBson(movie: Movie): DBObject ={
+    MongoDBObject(
+      "movie_id"     -> movie.id,
+      "title"     -> movie.title,
+      "release" -> movie.release,
+      "video_release" -> movie.videoRelease,
+      "imdb_url" -> movie.imdbURL,
+      "genres" -> movie.genres
+    )
+  }
+  def fromBson(o: BSONObject): (ObjectId,Movie) = {
+    (new ObjectId(o.get("_id").toString),Movie(
+      id = o.get("movie_id").asInstanceOf[Integer],
+      title = o.get("title").toString,
+      release = o.get("release").asInstanceOf[DateTime],
+      videoRelease = o.get("video_release").asInstanceOf[DateTime],
+      imdbURL = o.get("imdb_url").asInstanceOf[String],
+      genres = o.get("genres").asInstanceOf[List[String]])
+      )
+  }
 }
